@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>🧾 AI Health Report Analyzer</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      background: linear-gradient(135deg, #e0ecff, #f7faff);
+      min-height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+    }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+      backdrop-filter: blur(7px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .upload-section input[type='file'] {
+      border: 2px dashed #a5b4fc;
+      padding: 25px;
+      text-align: center;
+      transition: 0.3s;
+      background: #f8faff;
+      font-size: 0.95rem;
+      font-weight: 500;
+      border-radius: 12px;
+    }
+    .upload-section input[type='file']:hover {
+      background: #eef3ff;
+      border-color: #7b6ef6;
+    }
+
+    #chat-box {
+      height: 420px;
+      overflow-y: auto;
+      padding: 18px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.5);
+      box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.08);
+      backdrop-filter: blur(6px);
+      scroll-behavior: smooth;
+    }
+
+    .user-msg, .bot-msg {
+      margin-bottom: 15px;
+      line-height: 1.5;
+    }
+    .user-msg {
+      color: #2563eb;
+      font-weight: 600;
+    }
+    .bot-msg {
+      background: #ffffffbf;
+      border-left: 5px solid #4f46e5;
+      padding: 12px 15px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+    }
+
+    .btn-primary, .btn-success {
+      border-radius: 10px;
+      padding: 12px;
+      font-weight: 600;
+      font-size: 1.01rem;
+    }
+
+    .loading-dots::after {
+      content: '...';
+      animation: loading 1s infinite;
+    }
+    @keyframes loading {
+      0% { content: '.'; }
+      33% { content: '..'; }
+      66% { content: '...'; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="glass-card">
+      <h2 class="text-center mb-4 fw-bold">🧾 AI Health Report Analyzer</h2>
+
+      <!-- Upload Section -->
+      <div class="upload-section mb-4">
+        <h5 class="mb-3 text-secondary">📤 Upload Your Report (PDF / Image)</h5>
+        <form id="upload-form" enctype="multipart/form-data">
+          <input type="file" name="report" id="report" accept=".pdf,.png,.jpg,.jpeg" class="form-control mb-3" required>
+          <button type="submit" class="btn btn-success w-100 shadow-sm">Upload & Analyze</button>
+        </form>
+        <div id="upload-status" class="mt-3 fw-semibold text-success"></div>
+      </div>
+
+      <!-- Chat Section -->
+      <div class="chat-card">
+        <h5 class="text-center mb-3">💬 Chat About Your Report</h5>
+        <div id="chat-box" class="mb-3"></div>
+        <form id="chat-form">
+          <input type="text" id="user-input" name="user_input" class="form-control rounded-pill px-4 py-2 shadow-sm" placeholder="Ask like: Explain my report / Diet Plan / Health Risks" required>
+          <button type="submit" class="btn btn-primary mt-3 w-100 shadow-sm">Send Message</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ✅ Upload PDF/Image to Flask and Reset Chat
+    document.getElementById("upload-form").onsubmit = async function (e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const res = await fetch("/upload_report", { method: "POST", body: formData });
+      const data = await res.json();
+      let uploadStatus = document.getElementById("upload-status");
+
+      if (data.error) {
+        uploadStatus.innerHTML = `<span class="text-danger">${data.error}</span>`;
+      } else {
+        uploadStatus.innerHTML = `<span class="text-success">${data.message}</span>`;
+        if (data.reset_chat) document.getElementById("chat-box").innerHTML = "";
+      }
+    };
+
+    // ✅ Format AI Response
+    function formatAIResponse(text) {
+      text = text.replace(/### 🩺 Summary/g, '<h5 class="fw-bold text-primary">🩺 Summary</h5>');
+      text = text.replace(/### ⚠️ Key Findings/g, '<h5 class="fw-bold text-danger">⚠️ Key Findings</h5>');
+      text = text.replace(/### 💡 Precautions & Recommendations/g, '<h5 class="fw-bold text-success">💡 Precautions & Recommendations</h5>');
+      text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      text = text.replace(/- (.*?)(?=\n|$)/g, '<li>$1</li>');
+      text = text.replace(/(<li>.*<\/li>)/gs, '<ul class="mb-0">$1</ul>');
+      return text.replace(/\n/g, '<br>');
+    }
+
+    // ✅ Chat with AI
+    document.getElementById("chat-form").onsubmit = async function (e) {
+      e.preventDefault();
+      let input = document.getElementById("user-input").value;
+      let chatBox = document.getElementById("chat-box");
+
+      chatBox.innerHTML += `<p class="user-msg">🧍 <strong>You:</strong> ${input}</p>`;
+      chatBox.innerHTML += `<p id="loading" class="loading-dots text-muted">Analyzing</p>`;
+      document.getElementById("user-input").value = "";
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      const response = await fetch("/ask_report", {
+        method: "POST",
+        body: new URLSearchParams({ user_input: input }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" }
+      });
+
+      const data = await response.json();
+      document.getElementById("loading").remove();
+
+      const formattedReply = formatAIResponse(data.reply);
+      chatBox.innerHTML += `<div class="bot-msg shadow-sm"><b>🤖 AI:</b><br>${formattedReply}</div>`;
+      chatBox.scrollTop = chatBox.scrollHeight;
+    };
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
